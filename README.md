@@ -15,6 +15,7 @@ To Do:
       package;
 - [ ] export as an ESM module and UMD (in `/dist`);
 - [ ] add tests;
+- [ ] throw if unexpected option passed;
 - [ ] pull context from an object, so that resetting the context in one
       call affects all extant envvars;
 - [ ] better installation docs;
