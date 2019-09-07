@@ -466,7 +466,7 @@
    * @property {*}      _missValue - The value returned on a miss when
    *                    calling EnvList.get().
    * @method missingReturnValue(<*>) - Sets the missing return value.
-   * @method var(<string>) - Accesses the values dict (essentially a copy
+   * @method get(<string>) - Accesses the values dict (essentially a copy
    *         of the EnvList) and returns the dereferenced variable, or the
    *         _missValue if not found.
    *
@@ -496,7 +496,7 @@
   env.LIST_PROTO = {
     _values: {},
     _missValue: undefined,
-    var: function _var(name) {
+    get: function get(name) {
       if (!Object.prototype.hasOwnProperty.call(this._values, name)) {
         return this._missValue;
       }
