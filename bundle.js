@@ -252,7 +252,7 @@
    * @property {string[]} ensure - A list environmental variable names that
    *                      must exist in the context, or we exit the program.
    * @property {*}        missingReturnValue - The value that is returned
-   *                      when we call EnvList.var() on a missing value.
+   *                      when we call EnvList.get() on a missing value.
    */
 
   /**
@@ -464,7 +464,7 @@
    * @constant
    * @property {Object} _values - A basic object/dict version of the EnvList.
    * @property {*}      _missValue - The value returned on a miss when
-   *                    calling EnvList.var().
+   *                    calling EnvList.get().
    * @method missingReturnValue(<*>) - Sets the missing return value.
    * @method var(<string>) - Accesses the values dict (essentially a copy
    *         of the EnvList) and returns the dereferenced variable, or the
@@ -476,9 +476,9 @@
    * @example
    *     const envvars = env({ constants: { USERNAME: 'starbuck' } });
    *     envvars.missingReturnValue('n/a');
-   *     envvars.var('USERNAME')
+   *     envvars.get('USERNAME')
    *     // => 'starbuck'
-   *     envvars.var('PASSWORD')
+   *     envvars.get('PASSWORD')
    *     // => 'n/a'
    *     envvars.PASSWORD
    *     // => undefined
@@ -488,7 +488,7 @@
    *       constants: { USERNAME: 'starbuck' },
    *       missingReturnValue: 'n/a',
    *     });
-   *     envvars.var('PASSWORD')
+   *     envvars.get('PASSWORD')
    *     // => 'n/a'
    */
 
