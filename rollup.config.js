@@ -8,7 +8,8 @@ export default {
   output: {
     file: 'bundle.js',
     name: 'envjs',
-    format: 'umd'
+    format: 'umd',
+    sourcemap: 'inline',
   },
   plugins: [
     resolve(),
