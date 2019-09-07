@@ -15,6 +15,7 @@
     "eslint-plugin-json": "^1.4.0",
     "eslint-plugin-prettier": "^3.1.0",
     "husky": "^3.0.4",
+    "jsdoc-to-markdown": "^5.0.1",
     "lint-staged": "^9.2.3",
     "prettier": "^1.18.2",
     "rollup": "^1.20.3",
@@ -26,7 +27,10 @@
     "build": "rollup --config",
     "test": "echo TBD..."
   },
-  "browserslist": "> 2%, last 2 versions",
+  "browserslist": [
+    "last 2 versions",
+    "safari 7"
+  ],
   "eslintConfig": {
     "parserOptions": {
       "ecmaVersion": 2018
