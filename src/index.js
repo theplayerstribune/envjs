@@ -266,6 +266,15 @@ envjs.update = function(options = {}) {
   return obj;
 };
 
+envjs.set = function(name, value) {
+  if (typeof value === 'undefined') {
+    delete memo.ctx.process[name];
+    return false;
+  }
+  memo.ctx.process[name] = value;
+  return true;
+};
+
 /**
  * A basic getter for the internal context "ctx" value.
  * @returns {EnvContext}

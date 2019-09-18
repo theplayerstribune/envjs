@@ -66,6 +66,7 @@ describe('the default export', () => {
   test('is a function with methods on it', () => {
     expect(typeof envjs).toBe('function');
     expect(typeof envjs.ctx).toBe('function');
+    expect(typeof envjs.set).toBe('function');
     expect(typeof envjs.update).toBe('function');
     expect(typeof envjs.reset).toBe('function');
     expect(typeof envjs.check).toBe('function');
@@ -101,6 +102,33 @@ describe('ctx()', () => {
   test('returns a copy of the shared context object', () => {
     expect(envjs.ctx()).not.toBe(envjs.ctx());
     expect(envjs.ctx()).toEqual(envjs.ctx());
+  });
+});
+
+describe('set()', () => {
+  test('specifically sets values in the context as if in process.env', () => {
+    envjs.set('ONE', 'one');
+    expect(envjs.ctx()).toMatchContextWith({
+      process: { ONE: 'one' },
+    });
+  });
+
+  test('overrides values already in process.env', () => {
+    process.env = { ONE: 'one', TWO: 'two' };
+    envjs.update();
+    envjs.set('TWO', 'tutu');
+    expect(envjs.ctx()).toMatchContextWith({
+      process: { ONE: 'one', TWO: 'tutu' },
+    });
+  });
+
+  test('can clear a value already in process.env by passing undefined', () => {
+    process.env = { ONE: 'one', TWO: 'two' };
+    envjs.update();
+    envjs.set('TWO', undefined);
+    expect(envjs.ctx()).toMatchContextWith({
+      process: { ONE: 'one' },
+    });
   });
 });
 
@@ -591,13 +619,21 @@ describe('EnvLists', () => {
   });
 
   test('dynamically query in a mockable way for testing', () => {
-    process.env = { ONE: 'one', TWO: 'two' };
-    const envvars = envjs();
-    envjs.__m.ctx.process.ONE = 'wunwun';
-    envjs.__m.ctx.process.THREE = 'three';
+    fs.writeFileSync('/current/.env', 'ONE=one');
+    process.env = { TWO: 'two' };
+    const envvars = envjs({
+      defaults: {
+        THREE: 'three',
+      },
+      missValue: 'n/a',
+    });
+    envjs.set('ONE', 'wunwun');
+    envjs.set('TWO', undefined);
+    envjs.set('THREE', 'tretre');
 
     expect(envvars.get('ONE')).toEqual('wunwun');
-    expect(envvars.get('THREE')).toEqual('three');
+    expect(envvars.get('TWO')).toEqual('n/a');
+    expect(envvars.get('THREE')).toEqual('tretre');
   });
 
   test('dynamically query the ctx with .include()', () => {
