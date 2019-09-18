@@ -241,6 +241,7 @@ envjs._clearCtx = clearCtx;
 envjs._generateFromCtx = generateFromCtx;
 envjs._emptyCtx = memo.emptyCtx;
 envjs._exit = exit;
+envjs.__m = memo;
 
 envjs.set = function(options = {}) {
   envjs.validateEnvOptions(options);

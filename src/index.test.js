@@ -73,6 +73,17 @@ describe('the default export', () => {
     expect(typeof envjs.load).toBe('function');
   });
 
+  test('includes a direct reference to then context for debugging', () => {
+    expect(envjs.__m.ctx).toEqual(envjs._emptyCtx);
+    process.env = { ONE: 'one' };
+    fs.writeFileSync('/current/.env', 'TWO=two');
+    envjs();
+    expect(envjs.__m.ctx).toMatchContextWith({
+      process: { ONE: 'one' },
+      dotenv: { TWO: 'two' },
+    });
+  });
+
   test('wraps set()', () => {
     const envjsset = jest
       .spyOn(envjs, 'set')
@@ -513,7 +524,7 @@ describe('load()', () => {
   });
 });
 
-describe('validateEnvOptions', () => {
+describe('validateEnvOptions()', () => {
   test('throws when options is not a literal object', () => {
     function TestClass() {
       /* noop */
@@ -559,7 +570,7 @@ describe('EnvLists', () => {
     expect(envvars.ONE).toEqual('one');
   });
 
-  test('dynamically query the ctx with .get', () => {
+  test('dynamically query the ctx with .get()', () => {
     process.env = { ONE: 'one', TWO: 'two' };
     const envvars = envjs();
     expect(envvars.ONE).toEqual('one');
@@ -579,7 +590,17 @@ describe('EnvLists', () => {
     expect(envvars.get('THREE')).toEqual('three');
   });
 
-  test('dynamically query the ctx with .include', () => {
+  test('dynamically query in a mockable way for testing', () => {
+    process.env = { ONE: 'one', TWO: 'two' };
+    const envvars = envjs();
+    envjs.__m.ctx.process.ONE = 'wunwun';
+    envjs.__m.ctx.process.THREE = 'three';
+
+    expect(envvars.get('ONE')).toEqual('wunwun');
+    expect(envvars.get('THREE')).toEqual('three');
+  });
+
+  test('dynamically query the ctx with .include()', () => {
     process.env = { ONE: 'one', TWO: 'two' };
 
     const envvars = envjs();
