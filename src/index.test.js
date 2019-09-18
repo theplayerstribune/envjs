@@ -66,7 +66,7 @@ describe('the default export', () => {
   test('is a function with methods on it', () => {
     expect(typeof envjs).toBe('function');
     expect(typeof envjs.ctx).toBe('function');
-    expect(typeof envjs.set).toBe('function');
+    expect(typeof envjs.update).toBe('function');
     expect(typeof envjs.reset).toBe('function');
     expect(typeof envjs.check).toBe('function');
     expect(typeof envjs.ensure).toBe('function');
@@ -84,9 +84,9 @@ describe('the default export', () => {
     });
   });
 
-  test('wraps set()', () => {
+  test('wraps update()', () => {
     const envjsset = jest
-      .spyOn(envjs, 'set')
+      .spyOn(envjs, 'update')
       .mockImplementation(() => 'returned');
     const options = { default: { EXAMPLE: 'one' } };
     expect(envjs(options)).toBe('returned');
@@ -104,11 +104,11 @@ describe('ctx()', () => {
   });
 });
 
-describe('set()', () => {
+describe('update()', () => {
   test('updates the memoized, shared context', () => {
     process.env = { ONE: 'one' };
     expect(envjs.ctx()).toEqual(envjs._emptyCtx);
-    envjs.set();
+    envjs.update();
     expect(envjs.ctx()).toMatchContextWith({ process: { ONE: 'one' } });
   });
 
@@ -120,7 +120,7 @@ describe('set()', () => {
         THREE: 'three',
       };
 
-      const envvars = envjs.set();
+      const envvars = envjs.update();
 
       expect(envvars).toBeInstanceOf(envjs.EnvList);
       for (const envvar in process.env) {
@@ -129,7 +129,7 @@ describe('set()', () => {
     });
 
     test('with the .get, .include/.includes, and .setMissValue methods', () => {
-      const envvars = envjs.set();
+      const envvars = envjs.update();
       expect(typeof envvars.get).toEqual('function');
       expect(typeof envvars.include).toEqual('function');
       expect(typeof envvars.includes).toEqual('function');
@@ -142,7 +142,7 @@ describe('set()', () => {
         TWO: 'two',
         THREE: 'three',
       };
-      expect(envjs.set()).toEqual({
+      expect(envjs.update()).toEqual({
         ONE: 'one',
         TWO: 'two',
         THREE: 'three',
@@ -155,7 +155,7 @@ describe('set()', () => {
       process.env = {
         ONE: 'one',
       };
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         defaults: {
           TWO: 'two',
         },
@@ -170,7 +170,7 @@ describe('set()', () => {
       process.env = {
         ONE: 'one',
       };
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         defaults: {
           ONE: 'wunwun',
           TWO: 'two',
@@ -184,7 +184,7 @@ describe('set()', () => {
 
     test('such that defaults are overriden by dotenv', () => {
       fs.writeFileSync('/current/.env', 'ONE=one');
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         defaults: {
           ONE: 'wunwun',
           TWO: 'two',
@@ -197,7 +197,7 @@ describe('set()', () => {
     });
 
     test('such that constants are set on the returned EnvList', () => {
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         constants: {
           ONE: 'one',
         },
@@ -210,7 +210,7 @@ describe('set()', () => {
       process.env = {
         ONE: 'one',
       };
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         defaults: {
           ONE: 'wunwun',
         },
@@ -223,7 +223,7 @@ describe('set()', () => {
     });
 
     test('such that missValue sets the EnvLists default missValue', () => {
-      const envvars = envjs.set({
+      const envvars = envjs.update({
         missValue: 0,
       });
       expect(envvars.get('TEST')).toBe(0);
@@ -237,7 +237,7 @@ describe('set()', () => {
       process.env = {
         ONE: 'one',
       };
-      envjs.set({
+      envjs.update({
         defaults: { TWO: 'two' },
         constants: { THREE: 'three' },
         ensure: ['ONE', 'TWO', 'THREE', 'FOUR'],
@@ -253,14 +253,14 @@ describe('set()', () => {
       const envjsload = jest
         .spyOn(envjs, 'load')
         .mockImplementation(() => ({}));
-      envjs.set();
+      envjs.update();
       expect(envjsload).toHaveBeenCalled();
     });
 
     test('such that a dotenv option of false precludes load()', () => {
       fs.writeFileSync('/current/.env', 'ONE=one');
       process.env = { TWO: 'two' };
-      const envvars = envjs.set({ dotenv: false });
+      const envvars = envjs.update({ dotenv: false });
       expect(envvars).toEqual({ TWO: 'two' });
     });
 
@@ -269,7 +269,7 @@ describe('set()', () => {
       process.env = {
         ONE: 'one',
       };
-      envjs.set({
+      envjs.update({
         defaults: {
           ONE: 'wunwun',
         },
@@ -283,14 +283,14 @@ describe('set()', () => {
     test('that allows process.env values to take precedence over dotenv', () => {
       fs.writeFileSync('/current/.env', 'ONE=wunwun');
       process.env = { ONE: 'one' };
-      const envvars = envjs.set();
+      const envvars = envjs.update();
       expect(envvars).toEqual({ ONE: 'one' });
     });
 
     test('that updates the shared, memoized context for all options', () => {
       fs.writeFileSync('/current/.env', 'ONE=one');
       process.env = { TWO: 'two' };
-      envjs.set({
+      envjs.update({
         defaults: {
           THREE: 'three',
         },
@@ -317,7 +317,7 @@ describe('set()', () => {
   test('on subsequent calls, cumulatively merges on to the context', () => {
     fs.writeFileSync('/current/.env', 'OMEGA=omega\nPI=pi');
     process.env = { ZERO: 'zero', ONE: 'one' };
-    envjs.set({
+    envjs.update({
       defaults: {
         ALPHA: 'alpha',
         TWO: 'two',
@@ -329,7 +329,7 @@ describe('set()', () => {
     });
     fs.writeFileSync('/current/.env', 'OMEGA=omegaomega\nCHI=chichi');
     process.env = { ONE: 'oneone', SIX: 'sixsix' };
-    const envvars = envjs.set({
+    const envvars = envjs.update({
       defaults: {
         TWO: 'twotwo',
         FOUR: 'fourfour',
@@ -371,9 +371,9 @@ describe('set()', () => {
 });
 
 describe('reset()', () => {
-  test('wraps set()', () => {
+  test('wraps update()', () => {
     const envjsset = jest
-      .spyOn(envjs, 'set')
+      .spyOn(envjs, 'update')
       .mockImplementation(() => 'returned');
     const options = { default: { EXAMPLE: 'one' } };
     expect(envjs.reset(options)).toBe('returned');
@@ -382,7 +382,7 @@ describe('reset()', () => {
   test('but clears out the context before updating', () => {
     fs.writeFileSync('/current/.env', 'OMEGA=omega\nPI=pi');
     process.env = { ZERO: 'zero', ONE: 'one' };
-    envjs.set({
+    envjs.update({
       defaults: {
         ALPHA: 'alpha',
         TWO: 'two',

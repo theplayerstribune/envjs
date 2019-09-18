@@ -232,7 +232,7 @@ function validateEnvOptions(options) {
  * @returns {EnvList} The reset, newly-generated environmental variables.
  */
 function envjs(options = {}) {
-  return envjs.set(options);
+  return envjs.update(options);
 }
 envjs.defaultOptions = defaultOptions;
 envjs.validateEnvOptions = validateEnvOptions;
@@ -243,7 +243,7 @@ envjs._emptyCtx = memo.emptyCtx;
 envjs._exit = exit;
 envjs.__m = memo;
 
-envjs.set = function(options = {}) {
+envjs.update = function(options = {}) {
   envjs.validateEnvOptions(options);
   const opts = copy(envjs.defaultOptions, options);
 
@@ -282,7 +282,7 @@ envjs.ctx = function() {
  */
 envjs.reset = function(opts) {
   envjs._clearCtx();
-  return envjs.set(opts);
+  return envjs.update(opts);
 };
 
 /**
