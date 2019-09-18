@@ -1,4 +1,5 @@
 const fs = require('fs');
+const util = require('util');
 jest.mock('fs');
 
 const assert = require('assert');
@@ -8,6 +9,13 @@ const envjs = require('.');
 const START_ENV = process.env;
 const START_CWD = process.cwd;
 
+function i(val) {
+  return util.inspect(val, false, null, true);
+}
+
+// A simpler way to match the state of the context by enumerating what
+// parts are different from an empty context, with the option to just
+// ignore the errors field that is populated by dotenv.
 expect.extend({
   toMatchContextWith(
     actual,
@@ -26,12 +34,13 @@ expect.extend({
     if (pass) {
       return {
         pass: true,
-        message: () => `expected ${expected} not to match ${actual}`,
+        message: () =>
+          `expected\n  ${i(expected)}\n not to match\n  ${i(actual)}`,
       };
     } else {
       return {
         pass: false,
-        message: () => `expected ${expected} to match ${actual}`,
+        message: () => `expected\n  ${i(expected)}\n to match\n  ${i(actual)}`,
       };
     }
   },
@@ -145,6 +154,7 @@ describe('set()', () => {
         TWO: 'two',
       });
     });
+
     test('such that defaults are overriden by process.env', () => {
       process.env = {
         ONE: 'one',
@@ -160,7 +170,21 @@ describe('set()', () => {
         TWO: 'two',
       });
     });
-    // test('such that defaults are overriden by dotenv', () => { });
+
+    test('such that defaults are overriden by dotenv', () => {
+      fs.writeFileSync('/current/.env', 'ONE=one');
+      const envvars = envjs.set({
+        defaults: {
+          ONE: 'wunwun',
+          TWO: 'two',
+        },
+      });
+      expect(envvars).toEqual({
+        ONE: 'one',
+        TWO: 'two',
+      });
+    });
+
     test('such that constants are set on the returned EnvList', () => {
       const envvars = envjs.set({
         constants: {
@@ -169,7 +193,9 @@ describe('set()', () => {
       });
       expect(envvars).toEqual({ ONE: 'one' });
     });
+
     test('such that constants cannot be overriden', () => {
+      fs.writeFileSync('/current/.env', 'TWO=two');
       process.env = {
         ONE: 'one',
       };
@@ -179,21 +205,24 @@ describe('set()', () => {
         },
         constants: {
           ONE: 'bumbum',
+          TWO: 'booboo',
         },
       });
-      // TODO: ensure dotenv is loaded...
-      expect(envvars).toEqual({ ONE: 'bumbum' });
+      expect(envvars).toEqual({ ONE: 'bumbum', TWO: 'booboo' });
     });
+
     test('such that missValue sets the EnvLists default missValue', () => {
       const envvars = envjs.set({
         missValue: 0,
       });
       expect(envvars.get('TEST')).toBe(0);
     });
+
     test('such that the ensure option calls the check() method with context and options', () => {
       const envjscheck = jest
         .spyOn(envjs, 'check')
         .mockImplementation(() => true);
+      fs.writeFileSync('/current/.env', 'FOUR=four');
       process.env = {
         ONE: 'one',
       };
@@ -202,11 +231,9 @@ describe('set()', () => {
         constants: { THREE: 'three' },
         ensure: ['ONE', 'TWO', 'THREE', 'FOUR'],
       });
-
-      // TODO: check with dotenv
       expect(envjscheck).toHaveBeenCalledWith(
         ['ONE', 'TWO', 'THREE', 'FOUR'],
-        ['TWO', 'ONE', 'THREE'],
+        ['TWO', 'FOUR', 'ONE', 'THREE'],
         { logOnMiss: true, exitOnMiss: true }
       );
     });
@@ -218,26 +245,19 @@ describe('set()', () => {
       envjs.set();
       expect(envjsload).toHaveBeenCalled();
     });
-    // test('such that the dotenv option can short-circuit load()', () => {});
-    // Put in set()?
-    xtest('overrides default values in context', () => {
-      // process.env = { ONE: 'one' }
-      // fs.writeFileSync('/current/.env', 'ONE=wunwun');
-      // const { dotenv } = envjs.load();
-      // expect(envjs._generateFromCtx().ONE).toEqual('one');
-    });
-    xtest('allows process.env values to take precedence in context', () => {
-      // process.env = { ONE: 'one' }
-      // fs.writeFileSync('/current/.env', 'ONE=wunwun');
-      // const { dotenv } = envjs.load();
-      // expect(envjs._generateFromCtx().ONE).toEqual('one');
+
+    test('such that a dotenv option of false precludes load()', () => {
+      fs.writeFileSync('/current/.env', 'ONE=one');
+      process.env = { TWO: 'two' };
+      const envvars = envjs.set({ dotenv: false });
+      expect(envvars).toEqual({ TWO: 'two' });
     });
 
     test('that does not mutate process.env', () => {
+      fs.writeFileSync('/current/.env', 'ONE=won');
       process.env = {
         ONE: 'one',
       };
-      // TODO: ensure that dotenv/load catches
       envjs.set({
         defaults: {
           ONE: 'wunwun',
@@ -249,7 +269,31 @@ describe('set()', () => {
       expect(process.env).toEqual({ ONE: 'one' });
     });
 
-    // test('that updates the shared, memoized context for all options', () => {});
+    test('that allows process.env values to take precedence over dotenv', () => {
+      fs.writeFileSync('/current/.env', 'ONE=wunwun');
+      process.env = { ONE: 'one' };
+      const envvars = envjs.set();
+      expect(envvars).toEqual({ ONE: 'one' });
+    });
+
+    test('that updates the shared, memoized context for all options', () => {
+      fs.writeFileSync('/current/.env', 'ONE=one');
+      process.env = { TWO: 'two' };
+      envjs.set({
+        defaults: {
+          THREE: 'three',
+        },
+        constants: {
+          FOUR: 'four',
+        },
+      });
+      expect(envjs.ctx()).toMatchContextWith({
+        dotenv: { ONE: 'one' },
+        process: { TWO: 'two' },
+        defaults: { THREE: 'three' },
+        constants: { FOUR: 'four' },
+      });
+    });
   });
 
   test('validates EnvOptions', () => {
@@ -260,6 +304,7 @@ describe('set()', () => {
   });
 
   test('on subsequent calls, cumulatively merges on to the context', () => {
+    fs.writeFileSync('/current/.env', 'OMEGA=omega\nPI=pi');
     process.env = { ZERO: 'zero', ONE: 'one' };
     envjs.set({
       defaults: {
@@ -271,6 +316,7 @@ describe('set()', () => {
         THREE: 'three',
       },
     });
+    fs.writeFileSync('/current/.env', 'OMEGA=omegaomega\nCHI=chichi');
     process.env = { ONE: 'oneone', SIX: 'sixsix' };
     const envvars = envjs.set({
       defaults: {
@@ -284,6 +330,7 @@ describe('set()', () => {
     });
     expect(envjs.ctx()).toMatchContextWith({
       process: { ZERO: 'zero', ONE: 'oneone', SIX: 'sixsix' },
+      dotenv: { OMEGA: 'omegaomega', PI: 'pi', CHI: 'chichi' },
       defaults: {
         ALPHA: 'alpha',
         TWO: 'twotwo',
@@ -305,6 +352,9 @@ describe('set()', () => {
       THREE: 'threethree',
       FIVE: 'fivefive',
       SIX: 'sixsix',
+      OMEGA: 'omegaomega',
+      PI: 'pi',
+      CHI: 'chichi',
     });
   });
 });
@@ -319,6 +369,7 @@ describe('reset()', () => {
     expect(envjsset).toHaveBeenCalledWith(options);
   });
   test('but clears out the context before updating', () => {
+    fs.writeFileSync('/current/.env', 'OMEGA=omega\nPI=pi');
     process.env = { ZERO: 'zero', ONE: 'one' };
     envjs.set({
       defaults: {
@@ -330,6 +381,7 @@ describe('reset()', () => {
         THREE: 'three',
       },
     });
+    fs.writeFileSync('/current/.env', 'OMEGA=omegaomega\nCHI=chichi');
     process.env = { ONE: 'oneone', SIX: 'sixsix' };
     const envvars = envjs.reset({
       defaults: {
@@ -343,6 +395,7 @@ describe('reset()', () => {
     });
     expect(envjs.ctx()).toMatchContextWith({
       process: { ONE: 'oneone', SIX: 'sixsix' },
+      dotenv: { OMEGA: 'omegaomega', CHI: 'chichi' },
       defaults: {
         TWO: 'twotwo',
         FOUR: 'fourfour',
@@ -359,6 +412,8 @@ describe('reset()', () => {
       THREE: 'threethree',
       FIVE: 'fivefive',
       SIX: 'sixsix',
+      OMEGA: 'omegaomega',
+      CHI: 'chichi',
     });
   });
 });

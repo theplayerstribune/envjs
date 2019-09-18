@@ -45,7 +45,6 @@ const memo = {
     process: {},
     constants: {},
     errors: {},
-    missValue: null,
   },
 };
 
@@ -60,7 +59,6 @@ function clearCtx() {
   memo.ctx.process = {};
   memo.ctx.constants = {};
   memo.ctx.errors = {};
-  memo.ctx.missValue = null;
 }
 
 function valuesFrom(ctx) {
