@@ -1,10 +1,18 @@
 const dotenv = require('dotenv');
 
+function copy() {
+  return Object.assign({}, ...Array.from(arguments));
+}
+
+function exit() {
+  process.exit(1);
+}
+
 /**
  * A dictionary of environmental variables.
  * @typedef {Object.<string, string>} EnvList
  *
- * @todo Upgrade to a class that implements env.LIST_PROTO below.
+ * @todo Upgrade to a class that implements envjs.LIST_PROTO below.
  */
 
 /**
@@ -18,7 +26,7 @@ const dotenv = require('dotenv');
  * @property {EnvList} constants - Constant environmental variables that
  *                     can not be overriden.
  * @property {EnvList} process - The content of process.env as of the last
- *                     call to _resetCtx.
+ *                     call to clearCtx.
  * @property {EnvList} dotenv - All environmental variables loaded by the
  *                     dotenv module.
  * @property {Object}  errors - A depository for errors generated when
@@ -29,34 +37,98 @@ const dotenv = require('dotenv');
  * The memoized environment context that we mutate and share.
  * @type {EnvContext}
  */
-const ctx = {
-  defaults: {},
-  constants: {},
-  process: {},
-  dotenv: {},
-  errors: {},
+const memo = {
+  ctx: null,
+  emptyCtx: {
+    defaults: {},
+    dotenv: {},
+    process: {},
+    constants: {},
+    errors: {},
+    missValue: null,
+  },
 };
 
 /**
- * Generates a set of environmental variables from the current context,
- * after applying all passed options. If a set of names we want to ensure
- * exist are passed, will apply these after the list is generated.
- * @param {EnvOptions} [options=env.DEFAULT_OPTS]
- * @returns {EnvList} The reset, newly-generated environmental variables.
+ * Resets the state of the context.
+ * @protected
  */
-function env(options = {}) {
-  const opts = Object.assign(env.DEFAULT_OPTS, options);
-  env.defaults(opts.defaults);
-  env.constants(opts.constants);
-  if (opts.dotenv) {
-    env.dotenv();
+function clearCtx() {
+  memo.ctx = copy(envjs._emptyCtx);
+}
+
+function valuesFrom(ctx) {
+  return copy(ctx.defaults, ctx.dotenv, ctx.process, ctx.constants);
+}
+
+/**
+ * The class for all EnvList objects. Allows us to dereference variables
+ * by name and control the value that is returned when the variable does not
+ * exist.
+ *
+ * @property {Object} values - A basic object/dict version of the EnvList.
+ * @property {*}      missValue - The value returned on a miss when
+ *                    calling EnvList.get().
+ * @method include(<string>) - Accesses the values dict and returns
+ *         whether the given name is in it.
+ * @method includes(<string>) – An alias of include().
+ * @method get(<string>) - Accesses the values dict and returns the
+ *         dereferenced variable, or the missValue if not found.
+ * @method setMissValue(<*>) - Sets the missing return value.
+ *
+ * @example
+ *     const envvars = env({ constants: { USERNAME: 'starbuck' } });
+ *     envvars.setMissValue('n/a');
+ *     envvars.get('USERNAME')
+ *     // => 'starbuck'
+ *     envvars.get('PASSWORD')
+ *     // => 'n/a'
+ *     envvars.PASSWORD
+ *     // => null
+ *
+ * @example <caption>You can pass a missing return value on generation:</caption>
+ *     const envvars = env({
+ *       constants: { USERNAME: 'starbuck' },
+ *       missValue: 'n/a',
+ *     });
+ *     envvars.get('PASSWORD')
+ *     // => 'n/a'
+ */
+class EnvList {
+  constructor(missValue = null) {
+    this.missValue = missValue;
   }
-  const obj = env._generateFromCtx();
-  obj.missingReturnValue(opts.missingReturnValue);
-  if (Array.isArray(opts.ensure) && opts.ensure.length) {
-    env.ensure(opts.ensure, Object.keys(obj));
+
+  include(name) {
+    this._staticValues = copy(valuesFrom(memo.ctx));
+    return Object.prototype.hasOwnProperty.call(this._staticValues, name);
   }
-  return obj;
+
+  includes(name) {
+    return this.include(name);
+  }
+
+  get(name) {
+    if (!this.include(name)) {
+      return this.missValue;
+    }
+    return this._staticValues[name];
+  }
+
+  setMissValue(missValue = null) {
+    this.missValue = missValue;
+  }
+}
+
+/**
+ * Merge the environmental variables in the context together into a
+ * single environmental object. Adds a prototype to the object with a
+ * few helper functions.
+ * @protected
+ */
+function generateFromCtx(missValue) {
+  const proto = new envjs.EnvList(missValue);
+  return Object.assign(Object.create(proto), valuesFrom(memo.ctx));
 }
 
 /**
@@ -70,98 +142,142 @@ function env(options = {}) {
  *                      variables.
  * @property {string[]} ensure - A list environmental variable names that
  *                      must exist in the context, or we exit the program.
- * @property {*}        missingReturnValue - The value that is returned
- *                      when we call EnvList.get() on a missing value.
+ * @property {*}        missValue - The value that is returned when we
+ *                      call EnvList.get() on a missing value.
  */
-
-/**
- * The default options passed to calls that generate a new context.
- * @type {EnvOptions}
- * @constant
- * @default
- */
-env.DEFAULT_OPTS = {
+const defaultOptions = {
   dotenv: true,
   constants: {},
   defaults: {},
   ensure: [],
-  missingReturnValue: undefined,
+  missValue: null,
 };
 
-/**
- * @typedef {Object} DotenvResult
- * @property {EnvList} dotenv - The list of environmental variables
- *                     loaded, if any, from the .env file.
- * @property {Error}   error - Any error (usually, missing .env file)
- *                     generated by running dotenv.config().
- */
+function isObjectLiteral(obj) {
+  return typeof obj === 'object' && obj.constructor === Object;
+}
+
+function isArrayLiteral(obj) {
+  return typeof obj === 'object' && obj.constructor === Array;
+}
+
+function validateEnvOptions(options) {
+  if (!isObjectLiteral(options)) {
+    throw new Error(
+      `invalid options: expected object literal, received: ${JSON.stringify(
+        options
+      )}`
+    );
+  }
+  const whitelistedFields = [
+    'dotenv',
+    'constants',
+    'defaults',
+    'ensure',
+    'missValue',
+  ];
+  const invalidFields = [];
+  for (const prop in options) {
+    if (!whitelistedFields.includes(prop)) {
+      invalidFields.push(prop);
+    }
+  }
+  if (invalidFields.length) {
+    throw new Error(
+      `invalid options: includes invalid fields: ${invalidFields.join(', ')}`
+    );
+  }
+
+  if (
+    options.defaults &&
+    (!isObjectLiteral(options.defaults) ||
+      !Object.values(options.defaults).every(i => typeof i === 'string'))
+  ) {
+    throw new Error(
+      `invalid option defaults: expected object literal with string keys`
+    );
+  }
+
+  if (
+    options.constants &&
+    (!isObjectLiteral(options.constants) ||
+      !Object.values(options.constants).every(i => typeof i === 'string'))
+  ) {
+    throw new Error(
+      `invalid option constants: expected object literal with string keys`
+    );
+  }
+
+  if (
+    options.ensure &&
+    (!isArrayLiteral(options.ensure) ||
+      !options.ensure.every(i => typeof i === 'string'))
+  ) {
+    throw new Error(
+      `invalid option ensure: expected array literal with string items`
+    );
+  }
+  return true;
+}
 
 /**
- * Loads variables from a .env file. Uses the standard modulen "dotenv",
- * but keeps the process.env free of the variables that are loaded,
- * adding them to the internal ctx.dotenv list. Any errors that are
- * generated are added to ctx.errors.dotenv (currently the only source
- * of errors in the context).
- * @returns {DotenvResult}
+ * Generates a set of environmental variables from the current context,
+ * after applying all passed options. If a set of names we want to ensure
+ * exist are passed, will apply these after the list is generated.
+ * @param {EnvOptions} [options=envjs.defaultOptions]
+ * @returns {EnvList} The reset, newly-generated environmental variables.
  */
-env.dotenv = function() {
-  // Ensure we have a copy of the current process.env, then run dotenv.
-  ctx.process = Object.assign({}, process.env);
-  const { parsed, error } = dotenv.config();
+function envjs(options = {}) {
+  return envjs.set(options);
+}
+envjs.defaultOptions = defaultOptions;
+envjs.validateEnvOptions = validateEnvOptions;
+envjs.EnvList = EnvList;
+envjs._clearCtx = clearCtx;
+envjs._generateFromCtx = generateFromCtx;
+envjs._emptyCtx = memo.emptyCtx;
+envjs._exit = exit;
 
-  // Identify what vars (if any) were appended by dotenv, and add to ctx.
-  if (parsed) {
-    Object.keys(parsed).forEach(prop => {
-      if (!Object.prototype.hasOwnProperty.call(ctx.process, prop)) {
-        ctx.dotenv[prop] = parsed[prop];
-      }
+envjs.set = function(options = {}) {
+  envjs.validateEnvOptions(options);
+  const opts = copy(envjs.defaultOptions, options);
+
+  memo.ctx.process = copy(memo.ctx.process, process.env);
+  memo.ctx.defaults = copy(memo.ctx.defaults, opts.defaults);
+  memo.ctx.constants = copy(memo.ctx.constants, opts.constants);
+
+  // if (opts.dotenv) {
+  //   envjs.dotenv(); // NOTE: loses control of thread. Race condition.
+  // }
+
+  const obj = envjs._generateFromCtx(opts.missValue);
+  const expected = opts.ensure;
+  if (expected.length) {
+    envjs.check(expected, Object.keys(obj), {
+      logOnMiss: true,
+      exitOnMiss: true,
     });
   }
-
-  // Attach any errors
-  if (error) {
-    ctx.errors = Object.assign(ctx.errors, { dotenv: { error } });
-  }
-
-  // Restore the clean, pre-dotenv process.env
-  process.env = ctx.process;
-  return { dotenv: ctx.dotenv, error: error };
+  return obj;
 };
 
 /**
- * Set the context's default environmental variables.
- * @param {EnvList} defaults - The new default environmental variables to
- *                  add/update.
- * @return {EnvList} The updated, complete list of default environmental
- *                   variables.
+ * A basic getter for the internal context "ctx" value.
+ * @returns {EnvContext}
  */
-env.defaults = function(defaults = {}) {
-  ctx.defaults = Object.assign(ctx.defaults, defaults);
-  return ctx.defaults;
-};
-
-/**
- * Set the context's constant environmental variables.
- * @param {EnvList} constants - The new constant environmental variables
- *                  to add/update.
- * @return {EnvList} The updated, complete list of constant environmental
- *                   variables.
- */
-env.constants = function(constants = {}) {
-  ctx.constants = Object.assign(ctx.constants, constants);
-  return ctx.constants;
+envjs.ctx = function() {
+  return copy(memo.ctx);
 };
 
 /**
  * Clears out the context and regenerates it according to the given
  * options.
- * @param {EnvOptions} [options=env.DEFAULT_OPTS]
+ * @param {EnvOptions} [options=envjs.defaultOptions]
  * @returns {EnvList} The reset, newly-generated environmental variables.
  */
-env.reset = function(options = {}) {
-  const opts = Object.assign(env.DEFAULT_OPTS, options);
-  env._resetCtx();
-  return env(opts);
+envjs.reset = function(opts) {
+  envjs._clearCtx();
+  return envjs.set(opts);
 };
 
 /**
@@ -187,131 +303,90 @@ env.reset = function(options = {}) {
  * @todo Add an option to throwOnMiss, that collects the error messages
  *       and then throws an error at the end of the function.
  */
-env.ensure = function(
+envjs.check = function(
   expected = [],
-  actual,
-  opts = { silent: false, exitOnMiss: true }
+  actual = [],
+  opts = {
+    logOnMiss: false,
+    exitOnMiss: false,
+    throwOnMiss: false,
+  }
 ) {
-  if (typeof actual === 'undefined') {
-    actual = Object.keys(env._generateFromCtx());
+  if (!isArrayLiteral(expected) || !isArrayLiteral(actual)) {
+    throw new Error('invalid values to check');
   }
 
-  let missing = false;
-  expected.forEach(variable => {
-    if (!actual.includes(variable)) {
-      if (!opts.silent) {
-        console.error(`[ERR] missing required env var {${variable}}`);
-      }
-      missing = true;
+  const missing = [];
+  expected.forEach(v => {
+    if (!actual.includes(v)) {
+      missing.push(v);
     }
   });
 
-  if (missing && opts.exitOnMiss) {
-    process.exit(1);
+  if (missing.length !== 0 && opts.logOnMiss) {
+    console.error(
+      missing.map(v => `[ERR] missing required env var {${v}}`).join('\n')
+    );
   }
 
-  return !missing;
+  if (missing.length !== 0 && opts.throwOnMiss) {
+    throw new Error(`missing required env vars: ${missing.join(', ')}`);
+  }
+
+  if (missing.length !== 0 && opts.exitOnMiss) {
+    envjs._exit();
+  }
+
+  return missing.length === 0;
+};
+
+envjs.ensure = function(expected) {
+  return envjs.check(expected, Object.keys(valuesFrom(memo.ctx)), {
+    throwOnMiss: true,
+  });
 };
 
 /**
- * A thin wrapper around env.ensure() that silences output and forces a
- * return value.
- * @param {string[]} [expected=[]] - The list of variable names we expect
- *                   to have been defined.
- * @returns {boolean} True if all the expected variables are defined,
- *                    false otherwise.
+ * @typedef {Object} DotenvResult
+ * @property {EnvList} dotenv - The list of environmental variables
+ *                     loaded, if any, from the .env file.
+ * @property {Error}   error - Any error (usually, missing .env file)
+ *                     generated by running dotenv.config().
  */
-env.check = function(expected = []) {
-  return env.ensure(expected, undefined, { silent: true, exitOnMiss: false });
-};
 
 /**
- * A basic getter for the internal context "ctx" value.
- * @returns {EnvContext}
+ * Loads variables from a .env file. Uses the standard modulen "dotenv",
+ * but keeps the process.env free of the variables that are loaded,
+ * adding them to the internal ctx.dotenv list. Any errors that are
+ * generated are added to ctx.errors.dotenv (currently the only source
+ * of errors in the context).
+ * @returns {DotenvResult}
  */
-env.ctx = function() {
-  return ctx;
-};
+// envjs.dotenv = function() {
+//   // Ensure we have a copy of the current process.env, then run dotenv.
+//   memo.ctx.process = copy(process.env);
+//   const { parsed, error } = dotenv.config();
 
-/**
- * Resets the state of the context.
- * @protected
- */
-env._resetCtx = function() {
-  ctx.defaults = {};
-  ctx.constants = {};
-  ctx.dotenv = {};
-  ctx.process = Object.assign({}, process.env);
-  ctx.errors = {};
-};
+//   // Identify what vars (if any) were appended by dotenv, and add to ctx.
+//   if (parsed) {
+//     Object.keys(parsed).forEach(prop => {
+//       if (!Object.prototype.hasOwnProperty.call(memo.ctx.process, prop)) {
+//         memo.ctx.dotenv[prop] = parsed[prop];
+//       }
+//     });
+//   }
 
-/**
- * The prototype for all EnvList objects. Allows us to dereference variables
- * by name and control the value that is returned when the variable does not
- * exist.
- * @constant
- * @property {Object} _values - A basic object/dict version of the EnvList.
- * @property {*}      _missValue - The value returned on a miss when
- *                    calling EnvList.get().
- * @method missingReturnValue(<*>) - Sets the missing return value.
- * @method get(<string>) - Accesses the values dict (essentially a copy
- *         of the EnvList) and returns the dereferenced variable, or the
- *         _missValue if not found.
- *
- * @todo Turn this into a class definition for EnvList (replace typedef
- *       above).
- *
- * @example
- *     const envvars = env({ constants: { USERNAME: 'starbuck' } });
- *     envvars.missingReturnValue('n/a');
- *     envvars.get('USERNAME')
- *     // => 'starbuck'
- *     envvars.get('PASSWORD')
- *     // => 'n/a'
- *     envvars.PASSWORD
- *     // => undefined
- *
- * @example <caption>You can pass a missing return value on generation:</caption>
- *     const envvars = env({
- *       constants: { USERNAME: 'starbuck' },
- *       missingReturnValue: 'n/a',
- *     });
- *     envvars.get('PASSWORD')
- *     // => 'n/a'
- */
-env.LIST_PROTO = {
-  _values: {},
-  _missValue: undefined,
-  get: function(name) {
-    if (!Object.prototype.hasOwnProperty.call(this._values, name)) {
-      return this._missValue;
-    }
-    return this._values[name];
-  },
-  missingReturnValue: function(value = null) {
-    this._missValue = value;
-  },
-};
+//   // Merge in any errors
+//   if (error) {
+//     memo.ctx.errors = Object.assign(memo.ctx.errors, { dotenv: { error } });
+//   }
 
-/**
- * Merge the environmental variables in the context together into a
- * single environmental object. Adds a prototype to the object with a
- * few helper functions (TODO).
- * @protected
- */
-env._generateFromCtx = function() {
-  const values = Object.assign(
-    {},
-    ctx.defaults,
-    ctx.dotenv,
-    ctx.process,
-    ctx.constants
-  );
-  const proto = { ...env.LIST_PROTO, _values: values };
-  return Object.assign(Object.create(proto), values);
-};
+//   // Restore the clean, pre-dotenv process.env
+//   process.env = copy(memo.ctx.process);
+//   return { dotenv: memo.ctx.dotenv, error: error };
+// };
 
-// Load the current state of process.env.
-env._resetCtx();
+// Load the current state of process.envjs.
+envjs._clearCtx();
 
-module.exports = env;
+module.exports = envjs;

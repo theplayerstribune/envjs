@@ -10,14 +10,14 @@ _This is a **work in progress**._
 
 To Do:
 
+- [x] add tests;
+- [x] throw if unexpected option passed;
+- [x] pull context from an object, so that resetting the context in one
+      call affects all extant envvars;
 - [ ] remove `dotenv` dependency;
 - [ ] structure the `debug` dependency so that rollup pulls in the UMD 
       package;
 - [ ] export as an ESM module and UMD (in `/dist`);
-- [ ] add tests;
-- [ ] throw if unexpected option passed;
-- [ ] pull context from an object, so that resetting the context in one
-      call affects all extant envvars;
 - [ ] better installation docs;
 - [ ] add clear instructions (and functions if necessary) for mocking 
       env in tests;
