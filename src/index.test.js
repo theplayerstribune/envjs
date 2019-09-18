@@ -1,16 +1,56 @@
+const fs = require('fs');
+jest.mock('fs');
+
+const assert = require('assert');
+
 const envjs = require('.');
 
 const START_ENV = process.env;
+const START_CWD = process.cwd;
+
+expect.extend({
+  toMatchContextWith(
+    actual,
+    expectedPartial,
+    options = { ignoreErrors: true }
+  ) {
+    const expected = Object.assign({}, envjs._emptyCtx, expectedPartial);
+
+    if (options.ignoreErrors) {
+      delete actual.errors;
+      delete expected.errors;
+    }
+
+    const pass = this.equals(actual, expected);
+
+    if (pass) {
+      return {
+        pass: true,
+        message: () => `expected ${expected} not to match ${actual}`,
+      };
+    } else {
+      return {
+        pass: false,
+        message: () => `expected ${expected} to match ${actual}`,
+      };
+    }
+  },
+});
 
 beforeEach(() => {
   jest.resetModules();
   jest.restoreAllMocks();
   process.env = {};
-  envjs.reset();
+  process.cwd = jest.fn(() => '/current');
+  envjs._clearCtx();
+  fs.reset();
+  fs.mkdirSync('/current');
+  fs._cwd = '/current';
 });
 
 afterEach(() => {
   process.env = START_ENV;
+  process.cwd = START_CWD;
 });
 
 describe('the default export', () => {
@@ -21,7 +61,7 @@ describe('the default export', () => {
     expect(typeof envjs.reset).toBe('function');
     expect(typeof envjs.check).toBe('function');
     expect(typeof envjs.ensure).toBe('function');
-    // expect(typeof envjs.load).toBe('function');
+    expect(typeof envjs.load).toBe('function');
   });
 
   test('wraps set()', () => {
@@ -49,9 +89,7 @@ describe('set()', () => {
     process.env = { ONE: 'one' };
     expect(envjs.ctx()).toEqual(envjs._emptyCtx);
     envjs.set();
-    expect(envjs.ctx()).toEqual(
-      Object.assign({}, envjs._emptyCtx, { process: { ONE: 'one' } })
-    );
+    expect(envjs.ctx()).toMatchContextWith({ process: { ONE: 'one' } });
   });
 
   describe('returns an EnvList object', () => {
@@ -152,8 +190,10 @@ describe('set()', () => {
       });
       expect(envvars.get('TEST')).toBe(0);
     });
-    test('such that the ensure option calls the check method with context and options', () => {
-      envjscheck = jest.spyOn(envjs, 'check').mockImplementation(() => true);
+    test('such that the ensure option calls the check() method with context and options', () => {
+      const envjscheck = jest
+        .spyOn(envjs, 'check')
+        .mockImplementation(() => true);
       process.env = {
         ONE: 'one',
       };
@@ -171,8 +211,27 @@ describe('set()', () => {
       );
     });
 
-    // test('such that dotenv options calls the load method', () => {});
-    // test('such that dotenv option defaults to true', () => {});
+    test('such that dotenv options calls the load() method by default', () => {
+      const envjsload = jest
+        .spyOn(envjs, 'load')
+        .mockImplementation(() => ({}));
+      envjs.set();
+      expect(envjsload).toHaveBeenCalled();
+    });
+    // test('such that the dotenv option can short-circuit load()', () => {});
+    // Put in set()?
+    xtest('overrides default values in context', () => {
+      // process.env = { ONE: 'one' }
+      // fs.writeFileSync('/current/.env', 'ONE=wunwun');
+      // const { dotenv } = envjs.load();
+      // expect(envjs._generateFromCtx().ONE).toEqual('one');
+    });
+    xtest('allows process.env values to take precedence in context', () => {
+      // process.env = { ONE: 'one' }
+      // fs.writeFileSync('/current/.env', 'ONE=wunwun');
+      // const { dotenv } = envjs.load();
+      // expect(envjs._generateFromCtx().ONE).toEqual('one');
+    });
 
     test('that does not mutate process.env', () => {
       process.env = {
@@ -223,21 +282,19 @@ describe('set()', () => {
         FIVE: 'fivefive',
       },
     });
-    expect(envjs.ctx()).toEqual(
-      Object.assign({}, envjs._emptyCtx, {
-        process: { ZERO: 'zero', ONE: 'oneone', SIX: 'sixsix' },
-        defaults: {
-          ALPHA: 'alpha',
-          TWO: 'twotwo',
-          FOUR: 'fourfour',
-        },
-        constants: {
-          BETA: 'beta',
-          THREE: 'threethree',
-          FIVE: 'fivefive',
-        },
-      })
-    );
+    expect(envjs.ctx()).toMatchContextWith({
+      process: { ZERO: 'zero', ONE: 'oneone', SIX: 'sixsix' },
+      defaults: {
+        ALPHA: 'alpha',
+        TWO: 'twotwo',
+        FOUR: 'fourfour',
+      },
+      constants: {
+        BETA: 'beta',
+        THREE: 'threethree',
+        FIVE: 'fivefive',
+      },
+    });
     expect(envvars).toEqual({
       ALPHA: 'alpha',
       BETA: 'beta',
@@ -284,19 +341,17 @@ describe('reset()', () => {
         FIVE: 'fivefive',
       },
     });
-    expect(envjs.ctx()).toEqual(
-      Object.assign({}, envjs._emptyCtx, {
-        process: { ONE: 'oneone', SIX: 'sixsix' },
-        defaults: {
-          TWO: 'twotwo',
-          FOUR: 'fourfour',
-        },
-        constants: {
-          THREE: 'threethree',
-          FIVE: 'fivefive',
-        },
-      })
-    );
+    expect(envjs.ctx()).toMatchContextWith({
+      process: { ONE: 'oneone', SIX: 'sixsix' },
+      defaults: {
+        TWO: 'twotwo',
+        FOUR: 'fourfour',
+      },
+      constants: {
+        THREE: 'threethree',
+        FIVE: 'fivefive',
+      },
+    });
     expect(envvars).toEqual({
       ONE: 'oneone',
       TWO: 'twotwo',
@@ -366,7 +421,41 @@ describe('ensure()', () => {
 });
 
 describe('load()', () => {
-  // ...
+  test('returns an object with the values in a dotenv', () => {
+    fs.writeFileSync('/current/.env', 'ONE=wunwun\nTWO=desmond-tutu\nTHREE=3');
+    expect(envjs.load()).toEqual({
+      dotenv: { ONE: 'wunwun', TWO: 'desmond-tutu', THREE: '3' },
+    });
+  });
+  test('returns an object with any error from running dotenv', () => {
+    expect(envjs.load()).toEqual(
+      expect.objectContaining({
+        error: expect.any(Object),
+      })
+    );
+  });
+  test('merges the dotenv values and error into the context', () => {
+    const { error } = envjs.load();
+    expect(envjs.ctx()).toEqual(
+      expect.objectContaining({
+        errors: { dotenv: { error } },
+      })
+    );
+    envjs.reset();
+    fs.writeFileSync('/current/.env', 'ONE=wunwun');
+    const { dotenv } = envjs.load();
+    expect(envjs.ctx()).toEqual(
+      expect.objectContaining({
+        dotenv,
+      })
+    );
+  });
+  test('does not mutate process.env', () => {
+    process.env = { ONE: 'one' };
+    fs.writeFileSync('/current/.env', 'ONE=wunwun\nTWO=desmond-tutu\nTHREE=3');
+    envjs.load();
+    expect(process.env).toEqual({ ONE: 'one' });
+  });
 });
 
 describe('validateEnvOptions', () => {

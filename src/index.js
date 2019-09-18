@@ -54,7 +54,13 @@ const memo = {
  * @protected
  */
 function clearCtx() {
-  memo.ctx = copy(envjs._emptyCtx);
+  memo.ctx = {};
+  memo.ctx.defaults = {};
+  memo.ctx.dotenv = {};
+  memo.ctx.process = {};
+  memo.ctx.constants = {};
+  memo.ctx.errors = {};
+  memo.ctx.missValue = null;
 }
 
 function valuesFrom(ctx) {
@@ -246,9 +252,9 @@ envjs.set = function(options = {}) {
   memo.ctx.defaults = copy(memo.ctx.defaults, opts.defaults);
   memo.ctx.constants = copy(memo.ctx.constants, opts.constants);
 
-  // if (opts.dotenv) {
-  //   envjs.dotenv(); // NOTE: loses control of thread. Race condition.
-  // }
+  if (opts.dotenv) {
+    envjs.load(); // NOTE: loses control of thread. Race condition.
+  }
 
   const obj = envjs._generateFromCtx(opts.missValue);
   const expected = opts.ensure;
@@ -362,29 +368,22 @@ envjs.ensure = function(expected) {
  * of errors in the context).
  * @returns {DotenvResult}
  */
-// envjs.dotenv = function() {
-//   // Ensure we have a copy of the current process.env, then run dotenv.
-//   memo.ctx.process = copy(process.env);
-//   const { parsed, error } = dotenv.config();
+envjs.load = function() {
+  // Ensure we have a copy of the current process.env, then run dotenv.
+  const oprocessenv = copy(process.env);
+  const { parsed, error } = dotenv.config();
 
-//   // Identify what vars (if any) were appended by dotenv, and add to ctx.
-//   if (parsed) {
-//     Object.keys(parsed).forEach(prop => {
-//       if (!Object.prototype.hasOwnProperty.call(memo.ctx.process, prop)) {
-//         memo.ctx.dotenv[prop] = parsed[prop];
-//       }
-//     });
-//   }
+  // Restore the clean, pre-dotenv process.env
+  process.env = oprocessenv;
 
-//   // Merge in any errors
-//   if (error) {
-//     memo.ctx.errors = Object.assign(memo.ctx.errors, { dotenv: { error } });
-//   }
+  // Merge parsed and errors into the context.
+  memo.ctx.dotenv = copy(memo.ctx.dotenv, parsed);
+  if (error) {
+    memo.ctx.errors = copy(memo.ctx.errors, { dotenv: { error } });
+  }
 
-//   // Restore the clean, pre-dotenv process.env
-//   process.env = copy(memo.ctx.process);
-//   return { dotenv: memo.ctx.dotenv, error: error };
-// };
+  return { dotenv: parsed, error };
+};
 
 // Load the current state of process.envjs.
 envjs._clearCtx();
