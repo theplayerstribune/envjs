@@ -1,4 +1,5 @@
 // rollup.config.js
+import replace from 'rollup-plugin-replace';
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
 import babel from 'rollup-plugin-babel';
@@ -12,6 +13,9 @@ export default {
     sourcemap: 'inline',
   },
   plugins: [
+    replace({
+      VERSION: process.env.npm_package_version,
+    }),
     resolve(),
     commonjs(),
     babel({

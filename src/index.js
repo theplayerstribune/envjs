@@ -242,6 +242,7 @@ envjs._generateFromCtx = generateFromCtx;
 envjs._emptyCtx = memo.emptyCtx;
 envjs._exit = exit;
 envjs.__m = memo;
+envjs.__version = 'v' + 'VERSION'; // Replaced in Rollup.
 
 envjs.update = function(options = {}) {
   envjs.validateEnvOptions(options);
