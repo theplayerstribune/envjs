@@ -1,8 +1,10 @@
+/**
+ * @jest-environment node
+ */
+
 const fs = require('fs');
 const util = require('util');
 jest.mock('fs');
-
-const assert = require('assert');
 
 const envjs = require('.');
 
@@ -74,7 +76,7 @@ describe('the default export', () => {
     expect(typeof envjs.load).toBe('function');
   });
 
-  test('includes a direct reference to then context for debugging', () => {
+  test('includes a direct reference to the context for debugging', () => {
     expect(envjs.__m.ctx).toEqual(envjs._emptyCtx);
     process.env = { ONE: 'one' };
     fs.writeFileSync('/current/.env', 'TWO=two');
