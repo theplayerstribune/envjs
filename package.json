@@ -1,6 +1,6 @@
 {
   "name": "envjs",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0-alpha.3",
   "main": "dist/umd-bundle.js",
   "license": "MIT",
   "dependencies": {

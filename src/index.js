@@ -198,7 +198,7 @@ function validateEnvOptions(options) {
       !Object.values(options.defaults).every(i => typeof i === 'string'))
   ) {
     throw new Error(
-      `invalid option defaults: expected object literal with string keys`
+      `invalid option defaults: expected object literal with string values`
     );
   }
 
@@ -208,7 +208,7 @@ function validateEnvOptions(options) {
       !Object.values(options.constants).every(i => typeof i === 'string'))
   ) {
     throw new Error(
-      `invalid option constants: expected object literal with string keys`
+      `invalid option constants: expected object literal with string values`
     );
   }
 

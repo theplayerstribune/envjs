@@ -26,6 +26,14 @@ To Do:
 - [ ] get to work in the browser;
 - [ ] add debug points.
 
+## Notes for development
+
+Use `yarn version` to bump versions. RN, specifically:
+
+```
+$ yarn version --prerelease
+```
+
 ## Documentation
 
 ### Constants

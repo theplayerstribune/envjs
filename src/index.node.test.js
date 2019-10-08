@@ -574,12 +574,12 @@ describe('validateEnvOptions()', () => {
       })
     ).toThrowError(/constant.+dtenv.+ensures/);
   });
-  test('throws when the defaults option is not a literal object with string keys', () => {
+  test('throws when the defaults option is not a literal object with string values', () => {
     expect(() => envjs.validateEnvOptions({ defaults: {} })).not.toThrow();
     expect(() => envjs.validateEnvOptions({ defaults: 'string' })).toThrow();
     expect(() => envjs.validateEnvOptions({ defaults: { KEY: [] } })).toThrow();
   });
-  test('throws when the constants option is not a literal object with string keys', () => {
+  test('throws when the constants option is not a literal object with string values', () => {
     expect(() => envjs.validateEnvOptions({ constants: {} })).not.toThrow();
     expect(() => envjs.validateEnvOptions({ constants: 'string' })).toThrow();
     expect(() =>
