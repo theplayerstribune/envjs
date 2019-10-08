@@ -54,7 +54,7 @@
     }
   },
   "lint-staged": {
-    "**/*.{js,mjs,json}": [
+    "!(dist)/**/*.{js,mjs,json}": [
       "eslint --fix",
       "git add"
     ]
