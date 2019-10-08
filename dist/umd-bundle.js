@@ -427,7 +427,7 @@
   envjs._emptyCtx = memo.emptyCtx;
   envjs._exit = exit;
   envjs.__m = memo;
-  envjs.__version = 'v' + '0.1.0-alpha.4'; // Replaced in Rollup.
+  envjs.__version = 'v' + '0.1.0-alpha.5'; // Replaced in Rollup.
 
   envjs.update = function () {
     var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
