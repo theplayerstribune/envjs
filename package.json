@@ -1,7 +1,7 @@
 {
   "name": "envjs",
   "version": "0.1.0-alpha",
-  "main": "bundle.js",
+  "main": "dist/umd-bundle.js",
   "license": "MIT",
   "dependencies": {
     "debug": "^4.1.1",
